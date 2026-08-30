@@ -63,7 +63,7 @@ function Registro() {
 
 function Login() {
   const navigate = useNavigate();
-  const [datos, setDatos] = useState({ nombre: '', contrasena: '' });
+  const [datos, setDatos] = useState({ correo: '', contrasena: '' });
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
 
@@ -100,7 +100,7 @@ function Login() {
       aviso={registroExitoso ? 'Registro completado. Ahora puedes iniciar sesión.' : ''}
       pie={<>¿Todavía no tienes una cuenta? <Link to="/registro">Regístrate</Link></>}
     >
-      <Campo label="Nombre de usuario" name="nombre" value={datos.nombre} onChange={(event) => setDatos({ ...datos, nombre: event.target.value })} />
+      <Campo label="Correo electrónico" name="correo" type="email" value={datos.correo} onChange={(event) => setDatos({ ...datos, correo: event.target.value })} />
       <Campo label="Contraseña" name="contrasena" type="password" value={datos.contrasena} onChange={(event) => setDatos({ ...datos, contrasena: event.target.value })} />
     </FormularioAuth>
   );

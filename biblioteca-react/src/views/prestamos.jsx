@@ -4,11 +4,31 @@ import { notificarLibrosActualizados } from '../services/eventos';
 import Modal from '../components/Modal';
 import { FormularioPrestamo } from '../components/CrudForms';
 
+// El backend guarda el estado tal cual ('activo' | 'devuelto' | 'atrasado')
+// pero no recalcula automáticamente si un préstamo activo ya venció: eso
+// se decide aquí, comparando fecha_devolucion con hoy. Así el badge de
+// "Vencido" siempre refleja la fecha real, aunque nadie haya tocado el
+// registro en el backend.
+function calcularDiasRestantes(fechaDevolucion) {
+  if (!fechaDevolucion) return null;
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const vencimiento = new Date(fechaDevolucion);
+  return Math.round((vencimiento - hoy) / 86400000);
+}
+
+function estadoMostrado(prestamo, diasRestantes) {
+  if (prestamo.estado === 'devuelto') return 'Devuelto';
+  if (diasRestantes !== null && diasRestantes < 0) return 'Vencido';
+  return 'Activo';
+}
+
 function Prestamos() {
   const [prestamos, setPrestamos] = useState([]);
   const [cargandoLista, setCargandoLista] = useState(true);
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [usuarios, setUsuarios] = useState([]);
+  const [puedeElegirUsuario, setPuedeElegirUsuario] = useState(true);
   const [libros, setLibros] = useState([]);
   const [modalAbierto, setModalAbierto] = useState(false);
   const [mensaje, setMensaje] = useState('');
@@ -22,7 +42,15 @@ function Prestamos() {
   }, []);
 
   useEffect(() => {
-    Promise.all([apiFetch('/usuarios'), apiFetch('/libros')]).then(([usuariosApi, librosApi]) => { setUsuarios(usuariosApi); setLibros(librosApi); }).catch(() => {});
+    // GET /usuarios solo lo pueden ver Bibliotecario/Administrador. Si el
+    // usuario logueado tiene rol "Usuario" normal, el backend responde
+    // 403 aquí: en ese caso el formulario de préstamo simplemente oculta
+    // el selector de usuario (el backend ya asume que el préstamo es
+    // para quien tiene la sesión iniciada).
+    apiFetch('/usuarios')
+      .then((data) => { setUsuarios(data); setPuedeElegirUsuario(true); })
+      .catch(() => { setUsuarios([]); setPuedeElegirUsuario(false); });
+    apiFetch('/libros').then(setLibros).catch(() => setLibros([]));
   }, []);
 
   const cargarPrestamos = async () => setPrestamos(await apiFetch('/prestamos'));
@@ -49,16 +77,21 @@ function Prestamos() {
     } catch (error) { setMensaje(error.message); }
   };
 
-  const prestamosFiltrados = prestamos.filter((prestamo) => {
+  const prestamosConEstado = prestamos.map((prestamo) => {
+    const diasRestantes = calcularDiasRestantes(prestamo.fecha_devolucion);
+    return { ...prestamo, diasRestantes, estadoMostrado: estadoMostrado(prestamo, diasRestantes) };
+  });
+
+  const prestamosFiltrados = prestamosConEstado.filter((prestamo) => {
     if (filtroEstado === 'todos') return true;
-    return prestamo.estado.toLowerCase() === filtroEstado.toLowerCase();
+    return prestamo.estadoMostrado.toLowerCase() === filtroEstado.toLowerCase();
   });
 
   const contadores = {
-    total: prestamos.length,
-    activos: prestamos.filter((p) => p.estado === 'Activo').length,
-    vencidos: prestamos.filter((p) => p.estado === 'Vencido').length,
-    proximosAVencer: prestamos.filter((p) => p.estado === 'Activo' && p.diasRestantes <= 7).length,
+    total: prestamosConEstado.length,
+    activos: prestamosConEstado.filter((p) => p.estadoMostrado === 'Activo').length,
+    vencidos: prestamosConEstado.filter((p) => p.estadoMostrado === 'Vencido').length,
+    proximosAVencer: prestamosConEstado.filter((p) => p.estadoMostrado === 'Activo' && p.diasRestantes <= 7).length,
   };
 
   return (
@@ -140,6 +173,7 @@ function Prestamos() {
                 <option value="todos">Todos los préstamos</option>
                 <option value="activo">Activos</option>
                 <option value="vencido">Vencidos</option>
+                <option value="devuelto">Devueltos</option>
               </select>
             </div>
           </div>
@@ -156,12 +190,12 @@ function Prestamos() {
               <div className="action-icon">➕</div>
               <div>
                 <strong>Nuevo Préstamo</strong>
-                <p>Registrar un nuevo préstamo</p>
+                <p>{puedeElegirUsuario ? 'Registrar un nuevo préstamo' : 'Pedir un libro prestado'}</p>
               </div>
               <span>→</span>
             </button>
 
-            <button className="action action-button" type="button" onClick={() => { const activo = prestamos.find((prestamo) => prestamo.estado === 'Activo'); if (activo) devolverPrestamo(activo.id); }}>
+            <button className="action action-button" type="button" onClick={() => { const activo = prestamosConEstado.find((prestamo) => prestamo.estadoMostrado === 'Activo'); if (activo) devolverPrestamo(activo.id_prestamo); }}>
               <div className="action-icon">↩️</div>
               <div>
                 <strong>Registrar Devolución</strong>
@@ -201,24 +235,28 @@ function Prestamos() {
                 </thead>
                 <tbody>
                   {prestamosFiltrados.map((prestamo) => (
-                    <tr key={prestamo.id}>
-                      <td><strong>{prestamo.libro}</strong></td>
+                    <tr key={prestamo.id_prestamo}>
+                      <td><strong>{prestamo.libros || '—'}</strong></td>
                       <td>{prestamo.usuario}</td>
-                      <td className="col-centro">{prestamo.fechaPrestamo}</td>
-                      <td className="col-centro">{prestamo.fechaVencimiento}</td>
+                      <td className="col-centro">{prestamo.fecha_prestamo}</td>
+                      <td className="col-centro">{prestamo.fecha_devolucion || '—'}</td>
                       <td className="col-centro">
-                        <span className={`badge ${prestamo.diasRestantes < 0 ? 'badge-danger' : prestamo.diasRestantes <= 7 ? 'badge-warning' : 'badge-success'}`}>
-                          {prestamo.diasRestantes < 0
-                            ? `${Math.abs(prestamo.diasRestantes)} d. atraso`
-                            : `${prestamo.diasRestantes} días`}
-                        </span>
+                        {prestamo.diasRestantes === null ? (
+                          <span className="badge badge-neutral">Sin fecha</span>
+                        ) : (
+                          <span className={`badge ${prestamo.diasRestantes < 0 ? 'badge-danger' : prestamo.diasRestantes <= 7 ? 'badge-warning' : 'badge-success'}`}>
+                            {prestamo.diasRestantes < 0
+                              ? `${Math.abs(prestamo.diasRestantes)} d. atraso`
+                              : `${prestamo.diasRestantes} días`}
+                          </span>
+                        )}
                       </td>
                       <td className="col-centro">
-                        {prestamo.estado === 'Activo' && <button type="button" className="table-action" onClick={() => devolverPrestamo(prestamo.id)}>Devolver</button>}
+                        {prestamo.estadoMostrado !== 'Devuelto' && <button type="button" className="table-action" onClick={() => devolverPrestamo(prestamo.id_prestamo)}>Devolver</button>}
                       </td>
                       <td className="col-centro">
-                        <span className={`badge ${prestamo.estado === 'Vencido' ? 'badge-danger' : 'badge-success'}`}>
-                          {prestamo.estado}
+                        <span className={`badge ${prestamo.estadoMostrado === 'Vencido' ? 'badge-danger' : prestamo.estadoMostrado === 'Devuelto' ? 'badge-neutral' : 'badge-success'}`}>
+                          {prestamo.estadoMostrado}
                         </span>
                       </td>
                     </tr>
@@ -238,7 +276,7 @@ function Prestamos() {
         </div>
       </div>
       {mensaje && <p className="auth-feedback auth-success">{mensaje}</p>}
-      {modalAbierto && <Modal titulo="Nuevo préstamo" onClose={() => setModalAbierto(false)}><FormularioPrestamo usuarios={usuarios} libros={libros} onSubmit={guardarPrestamo} cargando={cargando} /></Modal>}
+      {modalAbierto && <Modal titulo="Nuevo préstamo" onClose={() => setModalAbierto(false)}><FormularioPrestamo usuarios={usuarios} libros={libros} mostrarSelectorUsuario={puedeElegirUsuario} onSubmit={guardarPrestamo} cargando={cargando} /></Modal>}
     </section>
   );
 }

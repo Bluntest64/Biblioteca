@@ -3,18 +3,24 @@ import { apiFetch } from '../services/api';
 import Modal from '../components/Modal';
 import { FormularioUsuario } from '../components/CrudForms';
 
+function formatearFecha(fecha) {
+  if (!fecha) return '—';
+  return String(fecha).slice(0, 10);
+}
+
 function Usuario() {
   const [usuarios, setUsuarios] = useState([]);
   const [cargandoLista, setCargandoLista] = useState(true);
+  const [errorPermiso, setErrorPermiso] = useState('');
 
   useEffect(() => {
     apiFetch('/usuarios')
       .then(setUsuarios)
-      .catch(() => setUsuarios([]))
+      .catch((error) => { setUsuarios([]); setErrorPermiso(error.message); })
       .finally(() => setCargandoLista(false));
   }, []);
 
-  const [filtroEstado, setFiltroEstado] = useState('todos');
+  const [filtroRol, setFiltroRol] = useState('todos');
   const [busqueda, setBusqueda] = useState('');
   const [modal, setModal] = useState(null);
   const [mensaje, setMensaje] = useState('');
@@ -23,7 +29,7 @@ function Usuario() {
   const guardarUsuario = async (datos) => {
     setCargando(true);
     try {
-      const respuesta = await apiFetch(modal.usuario ? `/usuarios/${modal.usuario.id}` : '/usuarios', { method: modal.usuario ? 'PUT' : 'POST', body: JSON.stringify(datos) });
+      const respuesta = await apiFetch(modal.usuario ? `/usuarios/${modal.usuario.id_usuario}` : '/usuarios', { method: modal.usuario ? 'PUT' : 'POST', body: JSON.stringify(datos) });
       setMensaje(respuesta.message);
       setModal(null);
       setUsuarios(await apiFetch('/usuarios'));
@@ -37,18 +43,18 @@ function Usuario() {
 
   const usuariosFiltrados = usuarios
     .filter((usuario) => {
-      const cumpleFiltro = filtroEstado === 'todos' || usuario.estado === filtroEstado;
+      const cumpleFiltro = filtroRol === 'todos' || usuario.rol === filtroRol;
       const cumpleBusqueda =
         usuario.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-        usuario.email.toLowerCase().includes(busqueda.toLowerCase());
+        usuario.correo.toLowerCase().includes(busqueda.toLowerCase());
       return cumpleFiltro && cumpleBusqueda;
     });
 
   const contadores = {
     total: usuarios.length,
-    activos: usuarios.filter((u) => u.estado === 'Activo').length,
-    inactivos: usuarios.filter((u) => u.estado === 'Inactivo').length,
-    conPrestamos: usuarios.filter((u) => u.prestamosActivos > 0).length,
+    administradores: usuarios.filter((u) => u.rol === 'Administrador').length,
+    bibliotecarios: usuarios.filter((u) => u.rol === 'Bibliotecario').length,
+    conPrestamos: usuarios.filter((u) => Number(u.prestamos_activos) > 0).length,
   };
 
   return (
@@ -63,18 +69,24 @@ function Usuario() {
           </h1>
           <p>
             Administra la información de los usuarios registrados, monitorea sus
-            préstamos activos y controla su estado en el sistema.
+            préstamos activos y controla su rol en el sistema.
           </p>
         </div>
 
         <div className="spotlight-card">
-          <span className="spotlight-label">USUARIOS ACTIVOS</span>
+          <span className="spotlight-label">USUARIOS REGISTRADOS</span>
           <div className="spotlight-value">
-            <strong>{contadores.activos}</strong>
+            <strong>{contadores.total}</strong>
           </div>
-          <small>{contadores.conPrestamos} con préstamos</small>
+          <small>{contadores.conPrestamos} con préstamos activos</small>
         </div>
       </div>
+
+      {errorPermiso && (
+        <p className="auth-feedback auth-error">
+          No se pudo cargar el directorio de usuarios: {errorPermiso} Esta sección requiere una cuenta con rol Bibliotecario o Administrador.
+        </p>
+      )}
 
       {/* Estadísticas */}
       <div className="stats-grid">
@@ -88,11 +100,11 @@ function Usuario() {
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon">✓</div>
+          <div className="stat-icon">🛡️</div>
           <div>
-            <span>USUARIOS ACTIVOS</span>
-            <h2>{contadores.activos}</h2>
-            <p>Con estado activo</p>
+            <span>ADMINISTRADORES</span>
+            <h2>{contadores.administradores}</h2>
+            <p>Con acceso total</p>
           </div>
         </div>
 
@@ -106,11 +118,11 @@ function Usuario() {
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon">⊘</div>
+          <div className="stat-icon">🗂️</div>
           <div>
-            <span>USUARIOS INACTIVOS</span>
-            <h2>{contadores.inactivos}</h2>
-            <p>Sin actividad reciente</p>
+            <span>BIBLIOTECARIOS</span>
+            <h2>{contadores.bibliotecarios}</h2>
+            <p>Gestionan el catálogo</p>
           </div>
         </div>
       </div>
@@ -128,18 +140,19 @@ function Usuario() {
             <input
               id="buscar-usuario"
               type="text"
-              placeholder="Busca por nombre o email..."
+              placeholder="Busca por nombre o correo..."
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
             />
           </div>
 
           <div className="filtro-campo">
-            <label htmlFor="filtro-estado-usuario">FILTRAR ESTADO</label>
-            <select id="filtro-estado-usuario" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}>
-              <option value="todos">Todos los usuarios</option>
-              <option value="Activo">Activos</option>
-              <option value="Inactivo">Inactivos</option>
+            <label htmlFor="filtro-rol-usuario">FILTRAR ROL</label>
+            <select id="filtro-rol-usuario" value={filtroRol} onChange={(e) => setFiltroRol(e.target.value)}>
+              <option value="todos">Todos los roles</option>
+              <option value="Usuario">Usuario</option>
+              <option value="Bibliotecario">Bibliotecario</option>
+              <option value="Administrador">Administrador</option>
             </select>
           </div>
         </div>
@@ -172,11 +185,11 @@ function Usuario() {
               <span>→</span>
             </button>
 
-            <button className="action action-button" type="button" onClick={() => setFiltroEstado('Activo')}>
+            <button className="action action-button" type="button" onClick={() => setFiltroRol('Usuario')}>
               <div className="action-icon">📊</div>
               <div>
-                <strong>Ver Historial</strong>
-                <p>Consultar préstamos anteriores</p>
+                <strong>Ver Usuarios</strong>
+                <p>Filtrar solo cuentas de tipo Usuario</p>
               </div>
               <span>→</span>
             </button>
@@ -194,16 +207,16 @@ function Usuario() {
               <div className="action-icon">ℹ️</div>
               <div>
                 <strong>Información de contacto</strong>
-                <p>Teléfono y email de cada usuario</p>
+                <p>Teléfono y correo de cada usuario</p>
               </div>
               <span>?</span>
             </div>
 
             <div className="action">
-              <div className="action-icon">⏱️</div>
+              <div className="action-icon">🛡️</div>
               <div>
-                <strong>Fecha de registro</strong>
-                <p>Identifica usuarios nuevos</p>
+                <strong>Roles del sistema</strong>
+                <p>Usuario, Bibliotecario o Administrador</p>
               </div>
               <span>?</span>
             </div>
@@ -238,32 +251,34 @@ function Usuario() {
                 <thead>
                   <tr>
                     <th>Nombre</th>
-                    <th>Email</th>
+                    <th>Correo</th>
                     <th>Teléfono</th>
+                    <th className="col-centro">Registrado</th>
                     <th className="col-centro">Préstamos activos</th>
-                    <th className="col-centro">Estado</th>
+                    <th className="col-centro">Rol</th>
                     <th className="col-centro">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {usuariosFiltrados.map((usr) => (
-                    <tr key={usr.id}>
+                    <tr key={usr.id_usuario}>
                       <td><strong>{usr.nombre}</strong></td>
-                      <td>{usr.email}</td>
-                      <td>{usr.telefono}</td>
+                      <td>{usr.correo}</td>
+                      <td>{usr.telefono || '—'}</td>
+                      <td className="col-centro">{formatearFecha(usr.created_at)}</td>
                       <td className="col-centro">
-                        <span className={`badge ${usr.prestamosActivos > 0 ? 'badge-info' : 'badge-neutral'}`}>
-                          {usr.prestamosActivos}
+                        <span className={`badge ${Number(usr.prestamos_activos) > 0 ? 'badge-info' : 'badge-neutral'}`}>
+                          {usr.prestamos_activos}
                         </span>
                       </td>
                       <td className="col-centro">
-                        <span className={`badge ${usr.estado === 'Activo' ? 'badge-success' : 'badge-neutral'}`}>
-                          {usr.estado}
+                        <span className={`badge ${usr.rol === 'Administrador' ? 'badge-warning' : usr.rol === 'Bibliotecario' ? 'badge-info' : 'badge-neutral'}`}>
+                          {usr.rol}
                         </span>
                       </td>
                       <td className="col-centro">
                         <button type="button" className="table-action" onClick={() => setModal({ tipo: 'editar', usuario: usr })}>Editar</button>
-                        <button type="button" className="table-action danger" onClick={() => eliminarUsuario(usr.id)}>Eliminar</button>
+                        <button type="button" className="table-action danger" onClick={() => eliminarUsuario(usr.id_usuario)}>Eliminar</button>
                       </td>
                     </tr>
                   ))}

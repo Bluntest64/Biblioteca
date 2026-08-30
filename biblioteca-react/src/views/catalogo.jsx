@@ -30,7 +30,7 @@ function Catalogo() {
   const guardarLibro = async (datos) => {
     setCargando(true);
     try {
-      const respuesta = await apiFetch(modal.libro ? `/libros/${modal.libro.id}` : '/libros', { method: modal.libro ? 'PUT' : 'POST', body: JSON.stringify(datos) });
+      const respuesta = await apiFetch(modal.libro ? `/libros/${modal.libro.id_libro}` : '/libros', { method: modal.libro ? 'PUT' : 'POST', body: JSON.stringify(datos) });
       setMensaje(respuesta.message);
       setModal(null);
       await recargarLibros();
@@ -50,7 +50,7 @@ function Catalogo() {
     .filter((libro) =>
       libro.titulo.toLowerCase().includes(filtro.toLowerCase()) ||
       libro.autor.toLowerCase().includes(filtro.toLowerCase()) ||
-      libro.categoria.toLowerCase().includes(filtro.toLowerCase())
+      (libro.categoria || '').toLowerCase().includes(filtro.toLowerCase())
     )
     .sort((a, b) => {
       if (ordenar === 'titulo') {
@@ -58,12 +58,12 @@ function Catalogo() {
       } else if (ordenar === 'autor') {
         return a.autor.localeCompare(b.autor);
       } else if (ordenar === 'disponibles') {
-        return b.disponibles - a.disponibles;
+        return (b.estado === 'disponible') - (a.estado === 'disponible');
       }
       return 0;
     });
 
-  const disponiblesTotal = libros.reduce((sum, l) => sum + Number(l.disponibles || 0), 0);
+  const disponiblesTotal = libros.filter((l) => l.estado === 'disponible').length;
 
   return (
     <section className="dashboard">
@@ -114,7 +114,7 @@ function Catalogo() {
             <select id="orden-catalogo" value={ordenar} onChange={(e) => setOrdenar(e.target.value)}>
               <option value="titulo">Título (A-Z)</option>
               <option value="autor">Autor (A-Z)</option>
-              <option value="disponibles">Más disponibles</option>
+              <option value="disponibles">Disponibles primero</option>
             </select>
           </div>
         </div>
@@ -144,27 +144,25 @@ function Catalogo() {
                     <th>Autor</th>
                     <th className="col-centro">Categoría</th>
                     <th className="col-centro">Año</th>
-                    <th className="col-centro">Disponibles</th>
-                    <th className="col-centro">Total</th>
+                    <th className="col-centro">Estado</th>
                     <th className="col-centro">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {librosFiltrados.map((libro) => (
-                    <tr key={libro.id}>
+                    <tr key={libro.id_libro}>
                       <td><strong>{libro.titulo}</strong></td>
                       <td>{libro.autor}</td>
-                      <td className="col-centro">{libro.categoria}</td>
-                      <td className="col-centro">{libro.año}</td>
+                      <td className="col-centro">{libro.categoria || '—'}</td>
+                      <td className="col-centro">{libro.anio || '—'}</td>
                       <td className="col-centro">
-                        <span className={`badge ${libro.disponibles > 0 ? 'badge-success' : 'badge-danger'}`}>
-                          {libro.disponibles}
+                        <span className={`badge ${libro.estado === 'disponible' ? 'badge-success' : 'badge-danger'}`}>
+                          {libro.estado === 'disponible' ? 'Disponible' : 'Prestado'}
                         </span>
                       </td>
-                      <td className="col-centro">{libro.total}</td>
                       <td className="col-centro">
                         <button type="button" className="table-action" onClick={() => setModal({ tipo: 'editar', libro })}>Editar</button>
-                        <button type="button" className="table-action danger" onClick={() => eliminarLibro(libro.id)}>Eliminar</button>
+                        <button type="button" className="table-action danger" onClick={() => eliminarLibro(libro.id_libro)}>Eliminar</button>
                       </td>
                     </tr>
                   ))}
