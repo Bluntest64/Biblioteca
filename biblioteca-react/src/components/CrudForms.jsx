@@ -34,18 +34,18 @@ function FormularioLibro({ inicial = {}, onSubmit, cargando }) {
     titulo: inicial.titulo || '',
     autor: inicial.autor || '',
     categoria: inicial.categoria || '',
-    anio: inicial.anio || '',
+    año: inicial.año || '',
     estado: inicial.estado || 'disponible',
   });
   const cambiar = (event) => setDatos({ ...datos, [event.target.name]: event.target.value });
   return (
-    <form className="crud-form" onSubmit={(event) => { event.preventDefault(); onSubmit({ ...datos, anio: datos.anio ? Number(datos.anio) : null }); }}>
+    <form className="crud-form" onSubmit={(event) => { event.preventDefault(); onSubmit({ ...datos, año: datos.año ? Number(datos.año) : null }); }}>
       <Campo label="Título" name="titulo" value={datos.titulo} onChange={cambiar} />
       <Campo label="Autor" name="autor" value={datos.autor} onChange={cambiar} />
       <Campo label="Categoría" name="categoria" value={datos.categoria} onChange={cambiar} required={false} />
       <label className="auth-field">
         <span>Año de publicación</span>
-        <input name="anio" type="number" min="1" max={añoActual} placeholder={String(añoActual)} value={datos.anio} onChange={cambiar} />
+        <input name="año" type="number" min="1" max={añoActual} placeholder={String(añoActual)} value={datos.año} onChange={cambiar} />
       </label>
       <label className="auth-field">
         <span>Estado</span>

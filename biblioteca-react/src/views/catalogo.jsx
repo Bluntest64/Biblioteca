@@ -154,7 +154,7 @@ function Catalogo() {
                       <td><strong>{libro.titulo}</strong></td>
                       <td>{libro.autor}</td>
                       <td className="col-centro">{libro.categoria || '—'}</td>
-                      <td className="col-centro">{libro.anio || '—'}</td>
+                      <td className="col-centro">{libro.año || "—"}</td>
                       <td className="col-centro">
                         <span className={`badge ${libro.estado === 'disponible' ? 'badge-success' : 'badge-danger'}`}>
                           {libro.estado === 'disponible' ? 'Disponible' : 'Prestado'}

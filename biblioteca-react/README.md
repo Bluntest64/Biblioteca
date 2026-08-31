@@ -23,7 +23,7 @@ El backend vive en un proyecto aparte: `biblioteca-backend/` (junto a esta carpe
 
 1. Ve a `../biblioteca-backend` y copia `.env.example` como `.env`.
 2. Completa `DB_PASSWORD` con la contraseña local de MySQL.
-3. Corre las migraciones en orden: `migrations/001_create_biblioteca.sql`, `002_agregar_rol_usuarios.sql`, `003_corregir_anio_libros.sql`.
+3. Corre el script de esquema: `migrations/001_esquema_biblioteca.sql`.
 4. Crea el primer administrador: `node scripts/crear-admin.js "Tu Nombre" tu@correo.com tuclave123`.
 
 ## Configuración del frontend
